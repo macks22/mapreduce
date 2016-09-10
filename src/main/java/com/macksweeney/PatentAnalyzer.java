@@ -48,7 +48,7 @@ public class PatentAnalyzer extends Configured implements Tool {
 
     public int run(String[] args) throws Exception {
         Configuration conf = getConf();
-        conf.set("key.value.separator.in.input.line", ",");
+        conf.set("mapreduce.input.keyvaluelinerecordreader.key.value.separator", ",");
         Job job = Job.getInstance(conf, PatentAnalyzer.class.getSimpleName());
         job.setJarByClass(PatentAnalyzer.class);
 

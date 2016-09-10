@@ -22,33 +22,41 @@ import java.io.IOException;
  */
 public class PatentCiteCountHistogram extends Configured implements Tool {
 
-    private static class PatentCitingCounterMapper extends Mapper<Text, Text, Text, Text> {
+    private static class PatentCiteCountHistogramMapper extends Mapper<Text, Text, IntWritable, IntWritable> {
 
-        /** Reverse citing -> cited relationship to cited -> citing. */
+        private final static IntWritable one = new IntWritable(1);
+        private IntWritable citationCount = new IntWritable();
+
+        /** Output citation count and 1; these will be summed in the reducer. */
         @Override
         protected void map(Text key, Text value, Context context) throws IOException, InterruptedException {
-            context.write(value, key);
+            citationCount.set(Integer.parseInt(value.toString()));
+            context.write(citationCount, one);
         }
     }
 
-    private static class PatentCitingCounterReducer extends Reducer<Text, Text, Text, IntWritable> {
+    private static class PatentCiteCountHistogramReducer extends
+            Reducer<IntWritable, IntWritable, IntWritable, IntWritable> {
 
-        /** For each patent, output the number of patents citing it. */
+        private IntWritable countOfCounts = new IntWritable();
+
+        /** Sum how many times each count showed up to get the histogram. */
         @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context)
+        protected void reduce(IntWritable key, Iterable<IntWritable> values, Context context)
                 throws IOException, InterruptedException
         {
             int count = 0;
-            for (Text citing : values) {
-                count += 1;
+            for (IntWritable value : values) {
+                count += value.get();
             }
-            context.write(key, new IntWritable(count));
+            countOfCounts.set(count);
+            context.write(key, countOfCounts);
         }
     }
 
+    /** Default key, value separator is the tab, which is appropriate for the citation count data. */
     public int run(String[] args) throws Exception {
         Configuration conf = getConf();
-        conf.set("mapreduce.input.keyvaluelinerecordreader.key.value.separator", ",");
         Job job = Job.getInstance(conf, PatentCiteCountHistogram.class.getSimpleName());
         job.setJarByClass(PatentCiteCountHistogram.class);
 
@@ -57,13 +65,13 @@ public class PatentCiteCountHistogram extends Configured implements Tool {
         FileInputFormat.setInputPaths(job, in);
         FileOutputFormat.setOutputPath(job, out);
 
-        job.setMapperClass(PatentCitingCounterMapper.class);
-        job.setReducerClass(PatentCitingCounterReducer.class);
+        job.setMapperClass(PatentCiteCountHistogramMapper.class);
+        job.setReducerClass(PatentCiteCountHistogramReducer.class);
 
         job.setInputFormatClass(KeyValueTextInputFormat.class);
         job.setOutputFormatClass(TextOutputFormat.class);
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(Text.class);
+        job.setOutputKeyClass(IntWritable.class);
+        job.setOutputValueClass(IntWritable.class);
 
         return job.waitForCompletion(true) ? 0 : 1;
     }
